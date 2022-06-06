@@ -53,12 +53,15 @@ class Model(object):
         self.network.load_state_dict(stats['net_param'])
 
     def train(self, data, mask, itr):
+        data = data.unsqueeze(2)
+
         frames = data
         self.network.train()
         frames_tensor = torch.FloatTensor(frames).to(self.configs.device)
         mask_tensor = torch.FloatTensor(mask).to(self.configs.device)
 
         next_frames = self.network(frames_tensor, mask_tensor)
+        # print(next_frames.shape)
         ground_truth = frames_tensor
 
         batch_size = next_frames.shape[0]
@@ -82,6 +85,7 @@ class Model(object):
     def test(self, data, mask):
         frames = data
         self.network.eval()
+        # frames[:,11:,] = 0.
         frames_tensor = torch.FloatTensor(frames).to(self.configs.device)
         mask_tensor = torch.FloatTensor(mask).to(self.configs.device)
         next_frames = self.network(frames_tensor, mask_tensor)

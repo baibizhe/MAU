@@ -8,10 +8,10 @@ import codecs
 import lpips
 
 
-def train(model, ims, real_input_flag, configs, itr):
+def train(model, ims, real_input_flag, configs, itr,total_itr):
     _, loss_l1, loss_l2 = model.train(ims, real_input_flag, itr)
     if itr % configs.display_interval == 0:
-        print('itr: ' + str(itr),
+        print('itr {}/ total itr {} '.format(str(itr),total_itr),
               'training L1 loss: ' + str(loss_l1), 'training L2 loss: ' + str(loss_l2))
 
 
@@ -48,6 +48,9 @@ def test(model, test_input_handle, configs, itr):
         if batch_id > configs.num_save_samples:
             break
         for data in test_input_handle:
+            data = data.unsqueeze(2)
+            # print(data.shape)
+
             if batch_id > configs.num_save_samples:
                 break
             print(batch_id)
@@ -128,8 +131,9 @@ def test(model, test_input_handle, configs, itr):
             for i in range(output_length):
                 img[res_height:, (configs.input_length + i) * res_width:(configs.input_length + i + 1) * res_width,
                 :] = img_out[0, -output_length + i, :]
-            img = np.maximum(img, 0)
-            img = np.minimum(img, 1)
+            img = img[:, configs.input_length * res_width:, :]
+            # img = np.maximum(img, 0)
+            # img = np.minimum(img, 1)
             cv2.imwrite(file_name, (img * 255).astype(np.uint8))
             batch_id = batch_id + 1
     f.close()
