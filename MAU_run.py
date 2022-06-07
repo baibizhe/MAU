@@ -62,8 +62,8 @@ def train_wrapper(model,args,key):
     if args.pretrained_model:
         model.load(args.pretrained_model)
         begin = int(args.pretrained_model.split('-')[-1])
-    data_path = os.path.join("data", "TestA")
-    csv_path = os.path.join(data_path, "TestA.csv")
+    data_path = os.path.join("data", "Train")
+    csv_path = os.path.join(data_path, "train.csv")
     data_paths = get_true_paths_from_csv(data_path, csv_path)
     data_paths = data_paths[key]
 
@@ -102,10 +102,10 @@ def train_wrapper(model,args,key):
             eta, real_input_flag = schedule_sampling(eta, itr, args.img_channel, batch_size,args)
             if itr % args.test_interval == 0:
                 print('Validate:')
-                trainer.test(model, val_input_handle, args, itr)
+                trainer.test(model, val_input_handle, args, itr,key)
             trainer.train(model, ims, real_input_flag, args, itr,total_itr)
             if itr % args.snapshot_interval == 0 and itr > begin:
-                model.save(itr)
+                model.save(itr,key)
             itr += 1
 
             # meminfo_end = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -150,17 +150,18 @@ def main():
         args.is_training = False
     # args.batch_size=78
     model = Model(args)
-    key = "radar"
-    if args.is_training:
-        if not os.path.exists(args.save_dir):
-            os.makedirs(args.save_dir)
-        if not os.path.exists(args.gen_frm_dir):
-            os.makedirs(args.gen_frm_dir)
-        train_wrapper(model,args,key)
-    else:
-        if not os.path.exists(args.gen_frm_dir):
-            os.makedirs(args.gen_frm_dir)
-        test_wrapper(model,args,key)
+    keys = ["radar","precip","wind"]
+    for key in keys:
+        if args.is_training:
+            if not os.path.exists(args.save_dir):
+                os.makedirs(args.save_dir)
+            if not os.path.exists(args.gen_frm_dir):
+                os.makedirs(args.gen_frm_dir)
+            train_wrapper(model,args,key)
+        else:
+            if not os.path.exists(args.gen_frm_dir):
+                os.makedirs(args.gen_frm_dir)
+            test_wrapper(model,args,key)
 
 if __name__ == '__main__':
     main()

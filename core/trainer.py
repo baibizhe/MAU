@@ -15,13 +15,18 @@ def train(model, ims, real_input_flag, configs, itr,total_itr):
               'training L1 loss: ' + str(loss_l1), 'training L2 loss: ' + str(loss_l2))
 
 
-def test(model, test_input_handle, configs, itr):
+def test(model, test_input_handle, configs, itr,key):
     print('test...')
     loss_fn = lpips.LPIPS(net='alex', spatial=True).to(configs.device)
-    res_path = configs.gen_frm_dir + '/' + str(itr)
+    res_path = os.path.join(configs.gen_frm_dir,key,str(itr))
+
+    # res_path = configs.gen_frm_dir + '/' + str(itr)
 
     if not os.path.exists(res_path):
-        os.mkdir(res_path)
+        try:
+            os.makedirs(res_path)
+        except:
+            pass
     f = codecs.open(res_path + '/performance.txt', 'w+')
     f.truncate()
 
@@ -134,7 +139,7 @@ def test(model, test_input_handle, configs, itr):
             img = img[:, configs.input_length * res_width:, :]
             # img = np.maximum(img, 0)
             # img = np.minimum(img, 1)
-            cv2.imwrite(file_name, (img * 255).astype(np.uint8))
+            cv2.imwrite(file_name, ((img/img.max())*255).astype(np.uint8))
             batch_id = batch_id + 1
     f.close()
     with codecs.open(res_path + '/data.txt', 'w+') as data_write:
