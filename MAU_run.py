@@ -8,10 +8,9 @@ import core.trainer as trainer
 # import pynvml
 import torchio as tio
 
-
 # pynvml.nvmlInit()
 # -----------------------------------------------------------------------------
-
+from tensor_board import Tensorboard
 
 
 def schedule_sampling(eta, itr, channel, batch_size,args):
@@ -27,7 +26,7 @@ def schedule_sampling(eta, itr, channel, batch_size,args):
         eta -= args.sampling_changing_rate
     else:
         eta = 0.0
-    print('eta: ', eta)
+    # print('eta: ', eta)
     random_flip = np.random.random_sample(
         (batch_size, args.total_length - args.input_length ))
     true_token = (random_flip < eta)
@@ -54,7 +53,7 @@ def schedule_sampling(eta, itr, channel, batch_size,args):
     return eta, real_input_flag
 
 
-def train_wrapper(model,args,key):
+def train_wrapper(model,args,key,wandb):
     begin = 0
     # handle = pynvml.nvmlDeviceGetHandleByIndex(0)
     # meminfo_begin = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -91,6 +90,7 @@ def train_wrapper(model,args,key):
     eta -= (begin * args.sampling_changing_rate)
     itr = begin
     # real_input_flag = {}
+
     for epoch in range(0, args.max_epoches):
         if itr > args.max_iterations:
             break
@@ -100,10 +100,18 @@ def train_wrapper(model,args,key):
                 break
             batch_size = ims.shape[0]
             eta, real_input_flag = schedule_sampling(eta, itr, args.img_channel, batch_size,args)
+            loss_l1, loss_l2=0,0
             if itr % args.test_interval == 0:
                 print('Validate:')
-                trainer.test(model, val_input_handle, args, itr,key)
-            trainer.train(model, ims, real_input_flag, args, itr,total_itr)
+                trainer.test(model, val_input_handle, args, itr,key,wandb)
+
+            loss_l1, loss_l2 = trainer.train(model, ims, real_input_flag, args, itr,total_itr)
+            if itr % args.display_interval == 0:
+                info = {"{}_train_loss_l1".format(key): loss_l1,
+                        "{}_train_l2".format(key): loss_l2,
+                        }
+
+                wandb.upload_wandb_info(info_dict=info)
             if itr % args.snapshot_interval == 0 and itr > begin:
                 model.save(itr,key)
             itr += 1
@@ -112,8 +120,8 @@ def train_wrapper(model,args,key):
             # print("GPU memory:%dM" % ((meminfo_end.used - meminfo_begin.used) / (1024 ** 2)))
 
 
-def test_wrapper(model,args,key):
-    model.load(args.pretrained_model)
+def test_wrapper(model,args,key,wandb):
+    # model.load(args.pretrained_model)
     test_input_handle = datasets_factory.data_provider(configs=args,
                                                        data_train_path=args.data_train_path,
                                                        batch_size=args.batch_size,
@@ -123,7 +131,7 @@ def test_wrapper(model,args,key):
 
     itr = 1
     for i in range(itr):
-        trainer.test(model, test_input_handle, args, itr)
+        trainer.test(model, test_input_handle, args, itr,key,wandb)
 def main():
     parser = argparse.ArgumentParser(description='MAU')
     parser.add_argument('--dataset', type=str, default='mnist')
@@ -142,7 +150,11 @@ def main():
     parser.add_argument('--device', type=str, default='cuda')
     args = parser.parse_args()
     args.tied = True
-
+    os.environ['WANDB_API_KEY'] = "55a895793519c48a6e64054c9b396629d3e41d10"
+    args.use_wandb = True
+    args.project_name = "TianchWeather"
+    args.method_name = "MAU"
+    wandb = Tensorboard(args)
     print('Initializing models')
     if args.is_training == 'True':
         args.is_training = True
@@ -157,11 +169,15 @@ def main():
                 os.makedirs(args.save_dir)
             if not os.path.exists(args.gen_frm_dir):
                 os.makedirs(args.gen_frm_dir)
-            train_wrapper(model,args,key)
+            # train_wrapper(model,args,key)
+            train_wrapper(model=model,args=args,key=key,wandb=wandb)
+
         else:
             if not os.path.exists(args.gen_frm_dir):
                 os.makedirs(args.gen_frm_dir)
-            test_wrapper(model,args,key)
+            # test_wrapper(model,args,key,wandb)
+            test_wrapper(model=model,args=args,key=key,wandb=wandb)
 
 if __name__ == '__main__':
+
     main()

@@ -1,6 +1,7 @@
 import os.path
 import cv2
 import numpy as np
+import wandb
 from skimage.metrics import structural_similarity as compare_ssim
 from core.utils import preprocess
 import torch
@@ -10,12 +11,15 @@ import lpips
 
 def train(model, ims, real_input_flag, configs, itr,total_itr):
     _, loss_l1, loss_l2 = model.train(ims, real_input_flag, itr)
+
     if itr % configs.display_interval == 0:
+
         print('itr {}/ total itr {} '.format(str(itr),total_itr),
               'training L1 loss: ' + str(loss_l1), 'training L2 loss: ' + str(loss_l2))
+    return   loss_l1, loss_l2
 
 
-def test(model, test_input_handle, configs, itr,key):
+def test(model, test_input_handle, configs, itr,key,my_wandb):
     print('test...')
     loss_fn = lpips.LPIPS(net='alex', spatial=True).to(configs.device)
     res_path = os.path.join(configs.gen_frm_dir,key,str(itr))
@@ -139,7 +143,9 @@ def test(model, test_input_handle, configs, itr,key):
             img = img[:, configs.input_length * res_width:, :]
             # img = np.maximum(img, 0)
             # img = np.minimum(img, 1)
-            cv2.imwrite(file_name, ((img/img.max())*255).astype(np.uint8))
+            # cv2.imwrite(file_name, ((img/img.max())*255).astype(np.uint8))
+            my_wandb.tensor_board.log({"label_slice": [wandb.Image(((img/img.max())*255).astype(np.uint8),
+                                                   caption=key)]})
             batch_id = batch_id + 1
     f.close()
     with codecs.open(res_path + '/data.txt', 'w+') as data_write:
@@ -178,9 +184,18 @@ def test(model, test_input_handle, configs, itr,key):
         data_write.writelines(str(ssim) + '\n')
 
         avg_lpips = avg_lpips / (batch_id * output_length)
+        info = {"{}_avg_mse".format(key): avg_mse,
+                "{}_avg_mae".format(key): avg_mae,
+                "{}_avg_psnr".format(key): avg_psnr,
+                "{}_avg_ssim".format(key): avg_ssim,
+                "{}_avg_lpips".format(key): avg_lpips,
+                }
+
+        my_wandb.upload_wandb_info(info_dict=info)
         print('lpips per frame: ' + str(avg_lpips))
         for i in range(configs.total_length - configs.input_length):
             print(img_lpips[i] / batch_id)
             img_lpips[i] = img_lpips[i] / batch_id
         data_write.writelines(str(avg_lpips) + '\n')
         data_write.writelines(str(img_lpips) + '\n')
+
