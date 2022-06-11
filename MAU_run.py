@@ -7,7 +7,7 @@ from core.models.model_factory import Model
 import core.trainer as trainer
 # import pynvml
 import torchio as tio
-
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 # pynvml.nvmlInit()
 # -----------------------------------------------------------------------------
 from tensor_board import Tensorboard
