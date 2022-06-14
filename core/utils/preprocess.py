@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import cv2
+# import cv2
 
 
 def reshape_patch(img_tensor, patch_size):

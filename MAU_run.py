@@ -1,6 +1,10 @@
 import os
 import argparse
 import numpy as np
+import torch
+
+import wandb
+
 from core.data_provider import datasets_factory
 from core.data_provider.weatherDataset import get_true_paths_from_csv
 from core.models.model_factory import Model
@@ -10,7 +14,7 @@ import torchio as tio
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 # pynvml.nvmlInit()
 # -----------------------------------------------------------------------------
-from tensor_board import Tensorboard
+# from tensor_board import Tensorboard
 
 
 def schedule_sampling(eta, itr, channel, batch_size,args):
@@ -136,6 +140,8 @@ def main():
     parser = argparse.ArgumentParser(description='MAU')
     parser.add_argument('--dataset', type=str, default='mnist')
     parser.add_argument('--is_train', type=str, default='False', required=True)
+    parser.add_argument('--max_iterations', type=int, default=10000)
+
     args_main = parser.parse_args()
     args_main.tied = True
 
@@ -177,6 +183,47 @@ def main():
                 os.makedirs(args.gen_frm_dir)
             # test_wrapper(model,args,key,wandb)
             test_wrapper(model=model,args=args,key=key,wandb=wandb)
+
+
+class Tensorboard:
+    def __init__(self, config):
+        os.system("wandb login")
+        os.system("wandb {}".format("online" if config.use_wandb else "offline"))
+        config.run_name = "MAU Num_hidden {} Num_layers {} TAU {}".format(str(config.num_hidden),
+                                                                          str(config.num_layers),
+                                                                          str(config.tau))
+        self.tensor_board = wandb.init(project=config.project_name,
+                                       name=config.run_name,
+                                       config=config)
+        self.ckpt_root = 'saved'
+        self.ckpt_path = os.path.join(self.ckpt_root, config.run_name)
+        self.visual_root_path = os.path.join(self.ckpt_path, 'history_images')
+        self.visual_results_root = os.path.join(self.visual_root_path, 'results')
+        self._safe_mkdir(self.ckpt_root)
+        self._safe_mkdir(self.ckpt_path)
+        self._safe_mkdir(self.visual_root_path)
+        self._safe_mkdir(self.visual_results_root)
+        self._safe_mkdir(self.ckpt_root, config.run_name)
+
+    def upload_wandb_info(self, info_dict, current_step=0):
+        for i, info in enumerate(info_dict):
+            self.tensor_board.log({info: info_dict[info]})
+        return
+
+    @staticmethod
+    def _safe_mkdir(parent_path, build_path=None):
+        if build_path is None:
+            if not os.path.exists(parent_path):
+                os.mkdir(parent_path)
+        else:
+            if not os.path.exists(os.path.join(parent_path, build_path)):
+                os.mkdir(os.path.join(parent_path, build_path))
+        return
+
+    def save_ckpt(self, model, name):
+        torch.save(model.state_dict(), os.path.join(self.ckpt_path, name))
+        return
+
 
 if __name__ == '__main__':
 
