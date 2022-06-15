@@ -90,7 +90,7 @@ def train_wrapper(model,args,key,wandb):
                                                       batch_size=args.batch_size,
                                                       is_training=False,
                                                       is_shuffle=False,
-                                                      train_transform=None,
+                                                      train_transform=trainTransform,
                                                       key = key)
     eta = args.sampling_start_value
     eta -= (begin * args.sampling_changing_rate)
