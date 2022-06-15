@@ -69,7 +69,9 @@ def train_wrapper(model,args,key,wandb):
     csv_path = os.path.join(data_path, "train.csv")
     data_paths = get_true_paths_from_csv(data_path, csv_path)
     data_paths = data_paths[key]
-
+    train_data_paths = data_paths[0:int(len(data_paths)*0.9)]
+    valid_data_paths = data_paths[int(len(data_paths)*0.9):]
+    print("train data length {}".format(len(train_data_paths)),"valid data length {}".format(len(valid_data_paths)))
     target_size = (args.total_length, args.img_height, args.img_width)
 
     resize =    tio.Resize(target_shape=target_size)
@@ -77,24 +79,23 @@ def train_wrapper(model,args,key,wandb):
         resize,
     ])
     train_input_handle = datasets_factory.data_provider(configs=args,
-                                                        data_train_path=data_paths,
+                                                        data_train_path=train_data_paths,
                                                         batch_size=args.batch_size,
                                                         is_training=True,
                                                         is_shuffle=True,
                                                         train_transform=trainTransform,
                                                         key = key)
     val_input_handle = datasets_factory.data_provider(configs=args,
-                                                      data_train_path=data_paths,
+                                                      data_train_path=valid_data_paths,
                                                       batch_size=args.batch_size,
                                                       is_training=False,
                                                       is_shuffle=False,
-                                                      train_transform=trainTransform,
+                                                      train_transform=None,
                                                       key = key)
     eta = args.sampling_start_value
     eta -= (begin * args.sampling_changing_rate)
     itr = begin
-    # real_input_flag = {}
-
+    avg_ssim = 0
     for epoch in range(0, args.max_epoches):
         if itr > args.max_iterations:
             break
@@ -107,8 +108,10 @@ def train_wrapper(model,args,key,wandb):
             loss_l1, loss_l2=0,0
             if itr % args.test_interval == 0:
                 print('Validate:')
-                trainer.test(model, val_input_handle, args, itr,key,wandb)
-
+                cur_avg_ssim = trainer.test(model, val_input_handle, args, itr,key,wandb)
+                if cur_avg_ssim > avg_ssim:
+                    print("model saved")
+                    model.save(itr,key)
             loss_l1, loss_l2 = trainer.train(model, ims, real_input_flag, args, itr,total_itr)
             if itr % args.display_interval == 0:
                 info = {"{}_train_loss_l1".format(key): loss_l1,
@@ -116,8 +119,8 @@ def train_wrapper(model,args,key,wandb):
                         }
 
                 wandb.upload_wandb_info(info_dict=info)
-            if itr % args.snapshot_interval == 0 and itr > begin:
-                model.save(itr,key)
+            # if itr % args.snapshot_interval == 0 and itr > begin:
+            #     model.save(itr,key)
             itr += 1
 
             # meminfo_end = pynvml.nvmlDeviceGetMemoryInfo(handle)
